@@ -5,4 +5,9 @@ tensorflow
 joblib
 streamlit-drawable-canvas
 matplotlib
+pandas
+seaborn
 opencv-python-headless
+Pillow
+gspread
+google-auth
