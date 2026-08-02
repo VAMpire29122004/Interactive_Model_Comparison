@@ -154,7 +154,7 @@ with col1:
 
         if is_correct == "No":
             with col_fb2:
-                actual_digit = st.number_input("What was the actual digit?", min_value=0, max_value=9, step=1)
+                actual_digit = st.number_input("What digit did you draw?", min_value=0, max_value=9, step=1)
                 if st.button("Submit Correct Label"):
                     success = log_to_google_sheet(
                         sheet_name="MNIST_Feedback_Data",  
