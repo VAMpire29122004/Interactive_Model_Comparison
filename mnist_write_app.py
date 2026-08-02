@@ -50,10 +50,18 @@ def log_to_google_sheet(sheet_name, model_used, predicted_label, actual_label, p
 
         # Append row: [Timestamp, Selected Model, Model Prediction, Correct Label, Image Pixels]
         sheet.append_row(
-            [timestamp, model_used, int(predicted_label), int(actual_label), pixel_data_str]
+            [timestamp, model_used, int(predicted_label), int(actual_label), pixel_data_str],
+            value_input_option="USER_ENTERED"
         )
         return True
+        
+    except gspread.exceptions.SpreadsheetNotFound:
+        st.error(f"Could not find Sheet '{sheet_name}'. Did you share it with the bot email?")
+        return False
     except Exception as e:
+        # Bypass the false alarm if the server successfully responded with a 200 OK code
+        if "200" in str(e):
+            return True
         st.error(f"Failed to log data: {e}")
         return False
 
@@ -109,6 +117,45 @@ with col1:
     )
 
     predict_btn = st.button("Predict Digit", type="primary")
+    
+    # --- FEEDBACK WIDGET MOVED HERE (Under Predict Button) ---
+    if st.session_state.prediction_made:
+        st.divider()
+        st.subheader("🤖 Help Us Improve (Data Flywheel)")
+        st.write("Was this prediction accurate?")
+
+        col_fb1, col_fb2 = st.columns([1, 1])
+
+        with col_fb1:
+            is_correct = st.radio("Is prediction correct?", ("Yes", "No"), index=0, key="feedback_radio")
+
+        if is_correct == "No":
+            with col_fb2:
+                actual_digit = st.number_input("What was the actual digit?", min_value=0, max_value=9, step=1)
+                if st.button("Submit Correct Label"):
+                    success = log_to_google_sheet(
+                        sheet_name="MNIST_Feedback_Data",  
+                        model_used=st.session_state.current_model_choice,
+                        predicted_label=st.session_state.current_prediction,
+                        actual_label=actual_digit,
+                        pixel_array=st.session_state.current_input_data,
+                    )
+                    if success:
+                        st.success("Logged! Thank you for feeding the data flywheel. 🚀")
+
+        elif is_correct == "Yes":
+            with col_fb2:
+                if st.button("Log Correct Sample"):
+                    success = log_to_google_sheet(
+                        sheet_name="MNIST_Feedback_Data",
+                        model_used=st.session_state.current_model_choice,
+                        predicted_label=st.session_state.current_prediction,
+                        actual_label=st.session_state.current_prediction,
+                        pixel_array=st.session_state.current_input_data,
+                    )
+                    if success:
+                        st.success("Logged! Thanks for confirming. 🎉")
+
 
 with col2:
     st.markdown("### Prediction Results")
@@ -202,40 +249,3 @@ with col2:
                 st.caption(f"Layer {i+1}: {layer.name} ({activation_data.shape[-1]} neurons)")
                 if len(activation_data.shape) == 2:
                     st.bar_chart(activation_data[0])
-
-        # --- 8. FEEDBACK WIDGET (Data Flywheel) ---
-        st.divider()
-        st.subheader("🤖 Help Us Improve (Data Flywheel)")
-        st.write("Was this prediction accurate?")
-
-        col_fb1, col_fb2 = st.columns([1, 2])
-
-        with col_fb1:
-            is_correct = st.radio("Is prediction correct?", ("Yes", "No"), index=0, key="feedback_radio")
-
-        if is_correct == "No":
-            with col_fb2:
-                actual_digit = st.number_input("What was the actual digit?", min_value=0, max_value=9, step=1)
-                if st.button("Submit Correct Label"):
-                    success = log_to_google_sheet(
-                        sheet_name="MNIST_Feedback_Data",  
-                        model_used=model_choice,
-                        predicted_label=prediction,
-                        actual_label=actual_digit,
-                        pixel_array=input_data,
-                    )
-                    if success:
-                        st.success("Logged! Thank you for feeding the data flywheel. 🚀")
-
-        elif is_correct == "Yes":
-            with col_fb2:
-                if st.button("Log Correct Sample"):
-                    success = log_to_google_sheet(
-                        sheet_name="MNIST_Feedback_Data",
-                        model_used=model_choice,
-                        predicted_label=prediction,
-                        actual_label=prediction,
-                        pixel_array=input_data,
-                    )
-                    if success:
-                        st.success("Logged! Thanks for confirming. 🎉")
