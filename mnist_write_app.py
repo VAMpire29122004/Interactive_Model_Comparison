@@ -11,6 +11,7 @@ from streamlit_drawable_canvas import st_canvas
 import datetime
 import gspread
 from google.oauth2.service_account import Credentials
+import time
 
 # --- 1. Page Config & Title ---
 st.set_page_config(page_title="MNIST Model Comparison", layout="wide")
@@ -92,6 +93,8 @@ if "current_prediction" not in st.session_state:
     st.session_state.current_prediction = None
 if "current_model_choice" not in st.session_state:
     st.session_state.current_model_choice = None
+if "canvas_key" not in st.session_state:         
+    st.session_state.canvas_key = 0              
 
 
 # --- 5. UI Layout ---
@@ -99,7 +102,7 @@ col1, col2 = st.columns([1, 2])
 
 with col1:
     st.markdown("### Drawing Pad")
-    # Create an interactive canvas
+    # Create an interactive canvas using the dynamic key
     canvas_result = st_canvas(
         fill_color="black",
         stroke_width=15, # Thick brush for better 28x28 scaling
@@ -108,7 +111,7 @@ with col1:
         height=280,
         width=280,
         drawing_mode="freedraw",
-        key="canvas",
+        key=f"canvas_{st.session_state.canvas_key}", 
     )
 
     model_choice = st.selectbox(
@@ -118,7 +121,7 @@ with col1:
 
     predict_btn = st.button("Predict Digit", type="primary")
     
-    # --- FEEDBACK WIDGET MOVED HERE (Under Predict Button) ---
+    # --- FEEDBACK WIDGET ---
     if st.session_state.prediction_made:
         st.divider()
         st.subheader("🤖 Help Us Improve (Data Flywheel)")
@@ -142,6 +145,12 @@ with col1:
                     )
                     if success:
                         st.success("Logged! Thank you for feeding the data flywheel. 🚀")
+                        
+                        # --- RESET LOGIC ---
+                        time.sleep(1.5) 
+                        st.session_state.prediction_made = False 
+                        st.session_state.canvas_key += 1 
+                        st.rerun() 
 
         elif is_correct == "Yes":
             with col_fb2:
@@ -155,6 +164,12 @@ with col1:
                     )
                     if success:
                         st.success("Logged! Thanks for confirming. 🎉")
+                        
+                        # --- RESET LOGIC ---
+                        time.sleep(1.5) 
+                        st.session_state.prediction_made = False 
+                        st.session_state.canvas_key += 1 
+                        st.rerun() 
 
 
 with col2:
