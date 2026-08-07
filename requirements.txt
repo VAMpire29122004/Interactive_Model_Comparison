@@ -7,3 +7,4 @@ tensorflow
 streamlit-drawable-canvas
 gspread
 google-auth
+scikit-learn
