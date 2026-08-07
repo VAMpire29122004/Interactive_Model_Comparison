@@ -7,4 +7,4 @@ tensorflow
 streamlit-drawable-canvas
 gspread
 google-auth
-scikit-learn
+scikit-learn==1.6.1
