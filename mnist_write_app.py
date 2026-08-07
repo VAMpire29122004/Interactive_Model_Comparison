@@ -71,9 +71,10 @@ def load_all_models():
     l1 = joblib.load('l1_model_mnistdataset.joblib')
     nn1 = load_model('L1R128_L2sig128_L3smax10.keras')
     nn2 = load_model('L1R264_L2sig264_L3smax10.keras')
-    return rf, l1, nn1, nn2
+    nn3 = load_model('L1R256_L2tanh128_L4R256_L4smax10.keras')
+    return rf, l1, nn1, nn2, nn3
 
-rf_model, l1_model, nn_model_1, nn_model_2 = load_all_models()
+rf_model, l1_model, nn_model_1, nn_model_2, nn_model_3 = load_all_models()
 
 
 # --- 4. Initialize Session State ---
@@ -107,7 +108,7 @@ with col1:
 
     model_choice = st.selectbox(
         "Choose your model:",
-        ("Random Forest", "L1- Lasso Model", "Sequential NN (Model 1)", "Sequential NN (Model 2)")
+        ("Random Forest", "L1- Lasso Model", "Sequential Neural Network 1 (3.5 lakh parameters)", "Sequential Neural Network 2 (8.4 lakh parameters)", "Sequential Neural Network 3 (8.1 lakh parameters)")
     )
 
     predict_btn = st.button("Predict Digit", type="primary")
@@ -130,12 +131,16 @@ if predict_btn and canvas_result.image_data is not None:
         st.session_state.current_prediction = rf_model.predict(input_data)[0]
     elif model_choice == "L1- Lasso Model":
         st.session_state.current_prediction = l1_model.predict(input_data)[0]
-    elif model_choice == "Sequential NN (Model 1)":
+    elif model_choice == "Sequential Neural Network 1 (3.5 lakh parameters)":
         probabilities = nn_model_1.predict(input_data.reshape(1,28,28))[0]
         st.session_state.current_prediction = np.argmax(probabilities)
         st.session_state.probabilities = probabilities
-    elif model_choice == "Sequential NN (Model 2)":
+    elif model_choice == "Sequential Neural Network 2 (8.4 lakh parameters)":
         probabilities = nn_model_2.predict(input_data.reshape(1,28,28))[0]
+        st.session_state.current_prediction = np.argmax(probabilities)
+        st.session_state.probabilities = probabilities
+    elif model_choice == "Sequential Neural Network 3 (8.1 lakh parameters)":
+        probabilities = nn_model_3.predict(input_data.reshape(1,28,28))[0]
         st.session_state.current_prediction = np.argmax(probabilities)
         st.session_state.probabilities = probabilities
 
@@ -144,18 +149,18 @@ if predict_btn and canvas_result.image_data is not None:
 with col1:
     if st.session_state.prediction_made:
         st.divider()
-        st.subheader("🤖 Help Us Improve (Data Flywheel)")
-        st.write("Was this prediction accurate?")
+        st.subheader("Hello! Please Help the models improve (Feedback Time!)")
+        st.write("Did your drawing match with the number predited by the model?")
 
         col_fb1, col_fb2 = st.columns([1, 1])
 
         with col_fb1:
-            is_correct = st.radio("Is prediction correct?", ("Yes", "No"), index=0, key="feedback_radio")
+            is_correct = st.radio("--->", ("Yes", "No"), index=0, key="feedback_radio")
 
         if is_correct == "No":
             with col_fb2:
                 actual_digit = st.number_input("What digit did you draw?", min_value=0, max_value=9, step=1)
-                if st.button("Submit Correct Label"):
+                if st.button("Submit"):
                     success = log_to_google_sheet(
                         sheet_name="MNIST_Feedback_Data",  
                         model_used=st.session_state.current_model_choice,
@@ -164,15 +169,15 @@ with col1:
                         pixel_array=st.session_state.current_input_data,
                     )
                     if success:
-                        st.success("Logged! Thank you for feeding the data flywheel. 🚀")
-                        time.sleep(1.5) 
+                        st.success("Logged! Thank you for your valuable feedback")
+                        time.sleep(1.2) 
                         st.session_state.prediction_made = False 
                         st.session_state.canvas_key += 1 
                         st.rerun() 
 
         elif is_correct == "Yes":
             with col_fb2:
-                if st.button("Log Correct Sample"):
+                if st.button("Log Sample"):
                     success = log_to_google_sheet(
                         sheet_name="MNIST_Feedback_Data",
                         model_used=st.session_state.current_model_choice,
@@ -181,8 +186,8 @@ with col1:
                         pixel_array=st.session_state.current_input_data,
                     )
                     if success:
-                        st.success("Logged! Thanks for confirming. 🎉")
-                        time.sleep(1.5) 
+                        st.success("Logged! Thanks for confirming.")
+                        time.sleep(1.2) 
                         st.session_state.prediction_made = False 
                         st.session_state.canvas_key += 1 
                         st.rerun() 
@@ -215,9 +220,9 @@ with col2:
             fig.colorbar(cax)
             st.pyplot(fig)
 
-        elif model_choice == "Sequential NN (Model 1)":
+        elif model_choice == "Sequential Neural Network 1 (3.5 lakh parameters)":
             probabilities = st.session_state.probabilities
-            st.success(f"### Sequential NN (Model 1) predicts: **{prediction}**")
+            st.success(f"### Sequential Neural Network 1 (3.5 lakh params) predicts: **{prediction}**")
             st.write(f"Confidence: {probabilities[prediction]:.2%}")
             st.progress(float(probabilities[prediction]))
             
@@ -230,15 +235,30 @@ with col2:
                 if len(activation_data.shape) == 2:
                     st.bar_chart(activation_data[0])
 
-        elif model_choice == "Sequential NN (Model 2)":
+        elif model_choice == "Sequential Neural Network 2 (8.8 lakh parameters)":
             probabilities = st.session_state.probabilities
-            st.success(f"### Sequential NN (Model 2) predicts: **{prediction}**")
+            st.success(f"### Sequential Neural Network 2 (8.8 lakh params) predicts: **{prediction}**")
             st.write(f"Confidence: {probabilities[prediction]:.2%}")
             st.progress(float(probabilities[prediction]))
             
             st.markdown("### Inside the Network: Neuron Activations")
             x = input_data.reshape(1, 28, 28)
             for i, layer in enumerate(nn_model_2.layers):
+                x = layer(x)
+                activation_data = x.numpy()
+                st.caption(f"Layer {i+1}: {layer.name} ({activation_data.shape[-1]} neurons)")
+                if len(activation_data.shape) == 2:
+                    st.bar_chart(activation_data[0])
+                    
+        elif model_choice == "Sequential Neural Network 3 (8.1 lakh parameters)":
+            probabilities = st.session_state.probabilities
+            st.success(f"### Sequential Neural Network 3 (8.1 lakh params) predicts: **{prediction}**")
+            st.write(f"Confidence: {probabilities[prediction]:.2%}")
+            st.progress(float(probabilities[prediction]))
+            
+            st.markdown("### Inside the Network: Neuron Activations")
+            x = input_data.reshape(1, 28, 28)
+            for i, layer in enumerate(nn_model_3.layers):
                 x = layer(x)
                 activation_data = x.numpy()
                 st.caption(f"Layer {i+1}: {layer.name} ({activation_data.shape[-1]} neurons)")
