@@ -72,9 +72,11 @@ def load_all_models():
     nn1 = load_model('L1R128_L2sig128_L3smax10.keras')
     nn2 = load_model('L1R264_L2sig264_L3smax10.keras')
     nn3 = load_model('L1R256_L2tanh128_L4R256_L4smax10.keras')
-    return rf, l1, nn1, nn2, nn3
+    nn4 = load_model('L1R10_L2sig18_L3R24_L4R6_L3smax10.keras')
+    nn5 = load_model('L1R2_L2R4_L3sig6_L4R8_L3smax10.keras')
+    return rf, l1, nn1, nn2, nn3, nn4, nn5
 
-rf_model, l1_model, nn_model_1, nn_model_2, nn_model_3 = load_all_models()
+rf_model, l1_model, nn_model_1, nn_model_2, nn_model_3, nn_model_4, nn_model_5 = load_all_models()
 
 
 # --- 4. Initialize Session State ---
@@ -108,7 +110,9 @@ with col1:
 
     model_choice = st.selectbox(
         "Choose your model:",
-        ("Random Forest", "L1- Lasso Model", "Sequential Neural Network 1 (3.5 lakh parameters)", "Sequential Neural Network 2 (8.4 lakh parameters)", "Sequential Neural Network 3 (8.1 lakh parameters)")
+        ("Random Forest", "L1- Lasso Model", "Sequential Neural Network 1 (3.5 lakh parameters)", 
+         "Sequential Neural Network 2 (8.4 lakh parameters)", "Sequential Neural Network 3 (8.1 lakh parameters)",
+        "Sequential Neural Network 4 (26 thousand parameters)", "Sequential Neural Network 5 (6 thousand parameters)")
     )
 
     predict_btn = st.button("Predict Digit", type="primary")
@@ -143,6 +147,16 @@ if predict_btn and canvas_result.image_data is not None:
         probabilities = nn_model_3.predict(input_data.reshape(1,28,28))[0]
         st.session_state.current_prediction = np.argmax(probabilities)
         st.session_state.probabilities = probabilities
+    elif model_choice == "Sequential Neural Network 4 (26 thousand parameters)":
+        probabilities = nn_model_4.predict(input_data.reshape(1,28,28))[0]
+        st.session_state.current_prediction = np.argmax(probabilities)
+        st.session_state.probabilities = probabilities
+    elif model_choice == "Sequential Neural Network 5 (6 thousand parameters)":
+        probabilities = nn_model_5.predict(input_data.reshape(1,28,28))[0]
+        st.session_state.current_prediction = np.argmax(probabilities)
+        st.session_state.probabilities = probabilities
+
+
 
 
 # --- 7. UI Layout: Feedback Widget (Left Column, Under Predict Button) ---
@@ -155,7 +169,7 @@ with col1:
         col_fb1, col_fb2 = st.columns([1, 1])
 
         with col_fb1:
-            is_correct = st.radio("--->", ("Yes", "No"), index=0, key="feedback_radio")
+            is_correct = st.radio("Y/N", ("Yes", "No"), index=0, key="feedback_radio")
 
         if is_correct == "No":
             with col_fb2:
@@ -177,7 +191,7 @@ with col1:
 
         elif is_correct == "Yes":
             with col_fb2:
-                if st.button("Log Sample"):
+                if st.button("Logged Sample"):
                     success = log_to_google_sheet(
                         sheet_name="MNIST_Feedback_Data",
                         model_used=st.session_state.current_model_choice,
@@ -259,6 +273,36 @@ with col2:
             st.markdown("### Inside the Network: Neuron Activations")
             x = input_data.reshape(1, 28, 28)
             for i, layer in enumerate(nn_model_3.layers):
+                x = layer(x)
+                activation_data = x.numpy()
+                st.caption(f"Layer {i+1}: {layer.name} ({activation_data.shape[-1]} neurons)")
+                if len(activation_data.shape) == 2:
+                    st.bar_chart(activation_data[0])
+
+        elif model_choice == "Sequential Neural Network 4 (26 thousand parameters)":
+            probabilities = st.session_state.probabilities
+            st.success(f"### Sequential Neural Network 4 (26 thousand parameters) predicts: **{prediction}**")
+            st.write(f"Confidence: {probabilities[prediction]:.2%}")
+            st.progress(float(probabilities[prediction]))
+            
+            st.markdown("### Inside the Network: Neuron Activations")
+            x = input_data.reshape(1, 28, 28)
+            for i, layer in enumerate(nn_model_4.layers):
+                x = layer(x)
+                activation_data = x.numpy()
+                st.caption(f"Layer {i+1}: {layer.name} ({activation_data.shape[-1]} neurons)")
+                if len(activation_data.shape) == 2:
+                    st.bar_chart(activation_data[0])
+
+       elif model_choice == "Sequential Neural Network 5 (6 thousand parameters)":
+            probabilities = st.session_state.probabilities
+            st.success(f"### Sequential Neural Network 5 (6 thousand parameters) predicts: **{prediction}**")
+            st.write(f"Confidence: {probabilities[prediction]:.2%}")
+            st.progress(float(probabilities[prediction]))
+            
+            st.markdown("### Inside the Network: Neuron Activations")
+            x = input_data.reshape(1, 28, 28)
+            for i, layer in enumerate(nn_model_5.layers):
                 x = layer(x)
                 activation_data = x.numpy()
                 st.caption(f"Layer {i+1}: {layer.name} ({activation_data.shape[-1]} neurons)")
