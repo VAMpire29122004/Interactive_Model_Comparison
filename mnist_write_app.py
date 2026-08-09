@@ -294,7 +294,7 @@ with col2:
                 if len(activation_data.shape) == 2:
                     st.bar_chart(activation_data[0])
 
-       elif model_choice == "Sequential Neural Network 5 (6 thousand parameters)":
+        elif model_choice == "Sequential Neural Network 5 (6 thousand parameters)":
             probabilities = st.session_state.probabilities
             st.success(f"### Sequential Neural Network 5 (6 thousand parameters) predicts: **{prediction}**")
             st.write(f"Confidence: {probabilities[prediction]:.2%}")
