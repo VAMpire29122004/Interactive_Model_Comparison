@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 import joblib
 import matplotlib.pyplot as plt
-from tensorflow.keras.models import load_model, Model 
+from tensorflow.keras.models import load_model, Model
 from streamlit_drawable_canvas import st_canvas
 import datetime
 import gspread
@@ -122,7 +122,6 @@ with col1:
 
 
 # --- 6. PROCESS PREDICTION IMMEDIATELY AFTER BUTTON CLICK ---
-# (Moved this up so the feedback widget doesn't require a second click!)
 if predict_btn and canvas_result.image_data is not None:
     img_array = canvas_result.image_data
     gray_image = cv2.cvtColor(img_array, cv2.COLOR_RGBA2GRAY)
@@ -166,7 +165,6 @@ if predict_btn and canvas_result.image_data is not None:
         probabilities = cnn_model_2.predict(input_data.reshape(1, 28, 28, 1))[0]
         st.session_state.current_prediction = np.argmax(probabilities)
         st.session_state.probabilities = probabilities
-
 
 
 # --- 7. UI Layout: Feedback Widget (Left Column, Under Predict Button) ---
@@ -318,42 +316,6 @@ with col2:
                 st.caption(f"Layer {i+1}: {layer.name} ({activation_data.shape[-1]} neurons)")
                 if len(activation_data.shape) == 2:
                     st.bar_chart(activation_data[0])
-
-        elif model_choice == "Convolutional Neural Network (Shallow)":
-            probabilities = st.session_state.probabilities
-            st.success(f"### Convolutional Neural Network (Shallow) predicts: **{prediction}**")
-            st.write(f"Confidence: {probabilities[prediction]:.2%}")
-            st.progress(float(probabilities[prediction]))
-            
-            st.markdown("### Through the Eyes of the CNN")
-            st.write("Here are the feature maps the first Convolutional layer extracted from your drawing:")
-            
-            # Find the first Conv2D layer in the Shallow model (cnn_model_1)
-            conv_layer = None
-            for layer in cnn_model_1.layers:
-                if 'conv2d' in layer.name.lower():
-                    conv_layer = layer
-                    break
-            
-            if conv_layer:
-                layer_output_model = Model(inputs=cnn_model_1.inputs, outputs=conv_layer.output)
-                feature_maps = layer_output_model.predict(input_data.reshape(1, 28, 28, 1))
-                num_filters = feature_maps.shape[-1]
-                
-                cols = 8
-                rows = (num_filters // cols) + (1 if num_filters % cols != 0 else 0)
-                fig, axes = plt.subplots(rows, cols, figsize=(cols * 2, rows * 2))
-                
-                for i, ax in enumerate(axes.flat):
-                    if i < num_filters:
-                        img = feature_maps[0, :, :, i]
-                        ax.imshow(img, cmap='viridis')
-                    ax.axis('off')
-                    
-                st.pyplot(fig)
-            else:
-                st.warning("Could not find a Convolutional layer to visualize in the Shallow model.")
-
 
         elif model_choice == "Convolutional Neural Network (Shallow)":
             probabilities = st.session_state.probabilities
