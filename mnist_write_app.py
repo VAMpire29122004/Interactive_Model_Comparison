@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 import joblib
 import matplotlib.pyplot as plt
-from tensorflow.keras.models import load_model, Model 
+from tensorflow.keras.models import load_model, Model
 from streamlit_drawable_canvas import st_canvas
 import datetime
 import gspread
@@ -122,7 +122,6 @@ with col1:
 
 
 # --- 6. PROCESS PREDICTION IMMEDIATELY AFTER BUTTON CLICK ---
-# (Moved this up so the feedback widget doesn't require a second click!)
 if predict_btn and canvas_result.image_data is not None:
     img_array = canvas_result.image_data
     gray_image = cv2.cvtColor(img_array, cv2.COLOR_RGBA2GRAY)
@@ -166,7 +165,6 @@ if predict_btn and canvas_result.image_data is not None:
         probabilities = cnn_model_2.predict(input_data.reshape(1, 28, 28, 1))[0]
         st.session_state.current_prediction = np.argmax(probabilities)
         st.session_state.probabilities = probabilities
-
 
 
 # --- 7. UI Layout: Feedback Widget (Left Column, Under Predict Button) ---
@@ -328,7 +326,7 @@ with col2:
             st.markdown("### Through the Eyes of the CNN")
             st.write("Here are the feature maps the first Convolutional layer extracted from your drawing:")
             
-            # Find the first Conv2D layer in the Shallow model (cnn_model_1)
+            # --- 1. FEATURE MAP VISUALIZATION ---
             conv_layer = None
             for layer in cnn_model_1.layers:
                 if 'conv2d' in layer.name.lower():
@@ -354,6 +352,18 @@ with col2:
             else:
                 st.warning("Could not find a Convolutional layer to visualize in the Shallow model.")
 
+            # --- 2. DENSE LAYER VISUALIZATION ---
+            st.markdown("### Inside the Network: Dense Neuron Activations")
+            st.write("After the features are extracted and pooled, they are flattened to make the final decision:")
+            x = input_data.reshape(1, 28, 28, 1) # Note the 4D shape for CNNs
+            for i, layer in enumerate(cnn_model_1.layers):
+                x = layer(x)
+                # Only plot layers that have been flattened (Flatten, Dense, Dropout)
+                if len(x.shape) == 2:
+                    activation_data = x.numpy()
+                    st.caption(f"Layer {i+1}: {layer.name} ({activation_data.shape[-1]} neurons)")
+                    st.bar_chart(activation_data[0])
+
 
         elif model_choice == "Convolutional Neural Network (Deep)":
             probabilities = st.session_state.probabilities
@@ -364,13 +374,12 @@ with col2:
             st.markdown("### Through the Eyes of the Deep CNN")
             st.write("Watch how the network breaks down your drawing from basic edges to abstract concepts:")
             
-            # Find ALL Conv2D layers in the Deep model
+            # --- 1. FEATURE MAP VISUALIZATION ---
             conv_layers = [layer for layer in cnn_model_2.layers if 'conv2d' in layer.name.lower()]
             
             if len(conv_layers) == 0:
                 st.warning("Could not find any Convolutional layers to visualize in the Deep model.")
             else:
-                # Loop through each convolutional layer we found (up to 2 for display purposes)
                 for layer_idx, conv_layer in enumerate(conv_layers[:2]):
                     st.markdown(f"#### Layer {layer_idx + 1}: {conv_layer.name}")
                     if layer_idx == 0:
@@ -378,12 +387,10 @@ with col2:
                     else:
                         st.caption("Here, the filters are combining the edges from Layer 1 into more abstract, complex shapes. It looks blurrier because it's looking for concepts, not just lines.")
                     
-                    # Create a mini-model to extract THIS specific layer's output
                     layer_output_model = Model(inputs=cnn_model_2.inputs, outputs=conv_layer.output)
                     feature_maps = layer_output_model.predict(input_data.reshape(1, 28, 28, 1))
                     num_filters = feature_maps.shape[-1]
                     
-                    # Plot them in a dynamic grid
                     cols = 8
                     rows = (num_filters // cols) + (1 if num_filters % cols != 0 else 0)
                     fig, axes = plt.subplots(rows, cols, figsize=(cols * 1.5, rows * 1.5))
@@ -395,3 +402,15 @@ with col2:
                         ax.axis('off')
                         
                     st.pyplot(fig)
+
+            # --- 2. DENSE LAYER VISUALIZATION ---
+            st.markdown("### Inside the Network: Dense Neuron Activations")
+            st.write("After the features are extracted and pooled, they are flattened to make the final decision:")
+            x = input_data.reshape(1, 28, 28, 1) # Note the 4D shape for CNNs
+            for i, layer in enumerate(cnn_model_2.layers):
+                x = layer(x)
+                # Only plot layers that have been flattened (Flatten, Dense, Dropout)
+                if len(x.shape) == 2:
+                    activation_data = x.numpy()
+                    st.caption(f"Layer {i+1}: {layer.name} ({activation_data.shape[-1]} neurons)")
+                    st.bar_chart(activation_data[0])
