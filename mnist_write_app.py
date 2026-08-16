@@ -74,9 +74,11 @@ def load_all_models():
     nn3 = load_model('L1R256_L2tanh128_L4R256_L4smax10.keras')
     nn4 = load_model('L1R10_L2sig18_L3R24_L4R6_L3smax10.keras')
     nn5 = load_model('L1R2_L2R4_L3sig6_L4R8_L3smax10.keras')
-    return rf, l1, nn1, nn2, nn3, nn4, nn5
+    cnn_model_1 = load_model('model_1_cnn.keras')
+    cnn_model_2 = load_model('model_2_cnn.keras')
+    return rf, l1, nn1, nn2, nn3, nn4, nn5, cnn_model_1, cnn_model_2
 
-rf_model, l1_model, nn_model_1, nn_model_2, nn_model_3, nn_model_4, nn_model_5 = load_all_models()
+rf_model, l1_model, nn_model_1, nn_model_2, nn_model_3, nn_model_4, nn_model_5, cnn_model_1, cnn_model_2 = load_all_models()
 
 
 # --- 4. Initialize Session State ---
@@ -112,7 +114,8 @@ with col1:
         "Choose your model:",
         ("Random Forest", "L1- Lasso Model", "Sequential Neural Network 1 (3.5 lakh parameters)", 
          "Sequential Neural Network 2 (8.4 lakh parameters)", "Sequential Neural Network 3 (8.1 lakh parameters)",
-        "Sequential Neural Network 4 (26 thousand parameters)", "Sequential Neural Network 5 (6 thousand parameters)")
+        "Sequential Neural Network 4 (26 thousand parameters)", "Sequential Neural Network 5 (6 thousand parameters)",
+        "Convolutional Neural Network (Shallow)", "Convolutional Neural Network (Deep)")
     )
 
     predict_btn = st.button("Predict Digit", type="primary")
@@ -155,7 +158,14 @@ if predict_btn and canvas_result.image_data is not None:
         probabilities = nn_model_5.predict(input_data.reshape(1,28,28))[0]
         st.session_state.current_prediction = np.argmax(probabilities)
         st.session_state.probabilities = probabilities
-
+    elif model_choice == "Convolutional Neural Network (Shallow)":
+        probabilities = cnn_model_1.predict(input_data.reshape(1, 28, 28, 1))[0]
+        st.session_state.current_prediction = np.argmax(probabilities)
+        st.session_state.probabilities = probabilities
+    elif model_choice == "Convolutional Neural Network (Deep)":
+        probabilities = cnn_model_2.predict(input_data.reshape(1, 28, 28, 1))[0]
+        st.session_state.current_prediction = np.argmax(probabilities)
+        st.session_state.probabilities = probabilities
 
 
 
@@ -308,3 +318,80 @@ with col2:
                 st.caption(f"Layer {i+1}: {layer.name} ({activation_data.shape[-1]} neurons)")
                 if len(activation_data.shape) == 2:
                     st.bar_chart(activation_data[0])
+
+        elif model_choice == "Convolutional Neural Network (Shallow)":
+            probabilities = st.session_state.probabilities
+            st.success(f"### Convolutional Neural Network (Shallow) predicts: **{prediction}**")
+            st.write(f"Confidence: {probabilities[prediction]:.2%}")
+            st.progress(float(probabilities[prediction]))
+            
+            st.markdown("### Through the Eyes of the CNN")
+            st.write("Here are the feature maps the first Convolutional layer extracted from your drawing:")
+            
+            # Find the first Conv2D layer in the Shallow model (cnn_model_1)
+            conv_layer = None
+            for layer in cnn_model_1.layers:
+                if 'conv2d' in layer.name.lower():
+                    conv_layer = layer
+                    break
+            
+            if conv_layer:
+                layer_output_model = Model(inputs=cnn_model_1.inputs, outputs=conv_layer.output)
+                feature_maps = layer_output_model.predict(input_data.reshape(1, 28, 28, 1))
+                num_filters = feature_maps.shape[-1]
+                
+                cols = 8
+                rows = (num_filters // cols) + (1 if num_filters % cols != 0 else 0)
+                fig, axes = plt.subplots(rows, cols, figsize=(cols * 2, rows * 2))
+                
+                for i, ax in enumerate(axes.flat):
+                    if i < num_filters:
+                        img = feature_maps[0, :, :, i]
+                        ax.imshow(img, cmap='viridis')
+                    ax.axis('off')
+                    
+                st.pyplot(fig)
+            else:
+                st.warning("Could not find a Convolutional layer to visualize in the Shallow model.")
+
+
+        elif model_choice == "Convolutional Neural Network (Deep)":
+            probabilities = st.session_state.probabilities
+            st.success(f"### Convolutional Neural Network (Deep) predicts: **{prediction}**")
+            st.write(f"Confidence: {probabilities[prediction]:.2%}")
+            st.progress(float(probabilities[prediction]))
+            
+            st.markdown("### Through the Eyes of the Deep CNN")
+            st.write("Watch how the network breaks down your drawing from basic edges to abstract concepts:")
+            
+            # Find ALL Conv2D layers in the Deep model
+            conv_layers = [layer for layer in cnn_model_2.layers if 'conv2d' in layer.name.lower()]
+            
+            if len(conv_layers) == 0:
+                st.warning("Could not find any Convolutional layers to visualize in the Deep model.")
+            else:
+                # Loop through each convolutional layer we found (up to 2 for display purposes)
+                for layer_idx, conv_layer in enumerate(conv_layers[:2]):
+                    st.markdown(f"#### Layer {layer_idx + 1}: {conv_layer.name}")
+                    if layer_idx == 0:
+                        st.caption("Notice how these filters act like basic edge and curve detectors. The drawing is still very recognizable.")
+                    else:
+                        st.caption("Here, the filters are combining the edges from Layer 1 into more abstract, complex shapes. It looks blurrier because it's looking for concepts, not just lines.")
+                    
+                    # Create a mini-model to extract THIS specific layer's output
+                    layer_output_model = Model(inputs=cnn_model_2.inputs, outputs=conv_layer.output)
+                    feature_maps = layer_output_model.predict(input_data.reshape(1, 28, 28, 1))
+                    num_filters = feature_maps.shape[-1]
+                    
+                    # Plot them in a dynamic grid
+                    cols = 8
+                    rows = (num_filters // cols) + (1 if num_filters % cols != 0 else 0)
+                    fig, axes = plt.subplots(rows, cols, figsize=(cols * 1.5, rows * 1.5))
+                    
+                    for i, ax in enumerate(axes.flat):
+                        if i < num_filters:
+                            img = feature_maps[0, :, :, i]
+                            ax.imshow(img, cmap='viridis')
+                        ax.axis('off')
+                        
+                    st.pyplot(fig)
