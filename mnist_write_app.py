@@ -12,6 +12,7 @@ import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 import time
+import ast
 
 # --- 1. Page Config & Title ---
 st.set_page_config(page_title="MNIST Model Comparison", layout="wide")
@@ -348,7 +349,7 @@ with col2:
                         ax.imshow(img, cmap='viridis')
                     ax.axis('off')
                     
-                st.pyplot(fig)
+                st.pyplot(fig) # FIXED: Outdented outside the for loop
             else:
                 st.warning("Could not find a Convolutional layer to visualize in the Shallow model.")
 
@@ -401,7 +402,7 @@ with col2:
                             ax.imshow(img, cmap='viridis')
                         ax.axis('off')
                         
-                    st.pyplot(fig)
+                    st.pyplot(fig) # FIXED: Outdented outside the for loop
 
             # --- 2. DENSE LAYER VISUALIZATION ---
             st.markdown("### Inside the Network: Dense Neuron Activations")
@@ -414,3 +415,63 @@ with col2:
                     activation_data = x.numpy()
                     st.caption(f"Layer {i+1}: {layer.name} ({activation_data.shape[-1]} neurons)")
                     st.bar_chart(activation_data[0])
+
+# --- 9. UI Layout: Community Gallery ---
+st.divider()
+st.markdown("## 🎨 Community Gallery")
+st.write("Check out how other people drew their digits and how the models interpreted them!")
+
+if st.button("Load Recent Drawings"):
+    with st.spinner("Fetching from the lab records..."):
+        try:
+            client = get_gsheet_client()
+            sheet = client.open("MNIST_Feedback_Data").sheet1
+            
+            # Fetch all values from the sheet
+            all_records = sheet.get_all_values()
+            
+            # Check if we have data (ignoring the header row if you have one)
+            if len(all_records) > 1:
+                # Grab the last 12 entries and reverse them so the newest are first
+                recent_records = all_records[-12:]
+                recent_records.reverse()
+                
+                # Create a 4-column grid
+                gallery_cols = st.columns(4)
+                
+                for index, row in enumerate(recent_records):
+                    # Skip header row if it accidentally gets caught
+                    if row[0] == "Timestamp": 
+                        continue
+                        
+                    try:
+                        timestamp, model_used, pred_label, actual_label, pixel_str = row
+                        
+                        # Safely evaluate the string back into a Python list, then to a NumPy array
+                        pixel_list = ast.literal_eval(pixel_str)
+                        pixel_array = np.array(pixel_list).reshape(28, 28)
+                        
+                        # Plot it in the appropriate column
+                        with gallery_cols[index % 4]:
+                            fig, ax = plt.subplots(figsize=(2, 2))
+                            ax.imshow(pixel_array, cmap='gray')
+                            ax.axis('off')
+                            st.pyplot(fig)
+                            
+                            # Add color-coded success/error metrics
+                            if pred_label == actual_label:
+                                st.success(f"Pred: {pred_label} | Actual: {actual_label}")
+                            else:
+                                st.error(f"Pred: {pred_label} | Actual: {actual_label}")
+                                
+                            st.caption(f"*{model_used}*")
+                            st.write("") # Just a little spacing
+                            
+                    except Exception as parse_error:
+                        # If a row has corrupted data, just skip it
+                        continue
+            else:
+                st.info("The gallery is empty! Be the first to draw a digit.")
+                
+        except Exception as e:
+            st.error(f"Could not load gallery: {e}")
