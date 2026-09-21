@@ -451,7 +451,7 @@ elif app_mode == "🎨 Community Gallery":
                             continue
                             
                         try:
-                            timestamp, model_used, pred_label, actual_label, pixel_str = row
+                            timestamp, model_used, pred_label, actual_label, pixel_str = row[:5]
                             
                             # Safely evaluate the string back into a Python list, then to a NumPy array
                             pixel_list = ast.literal_eval(pixel_str)
