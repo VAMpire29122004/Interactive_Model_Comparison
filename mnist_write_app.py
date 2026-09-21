@@ -118,7 +118,8 @@ if app_mode == "✍️ Draw & Predict":
             height=280,
             width=280,
             drawing_mode="freedraw",
-            key=f"canvas_{st.session_state.canvas_key}", 
+            key=f"canvas_{st.session_state.canvas_key}",
+            return_image_data=True,
         )
 
         model_choice = st.selectbox(
