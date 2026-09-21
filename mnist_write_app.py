@@ -427,6 +427,12 @@ elif app_mode == "🎨 Community Gallery":
     st.title("🎨 Community Gallery")
     st.write("Check out how other people drew their digits and how the models interpreted them!")
 
+    # --- NEW: Add a filter selection ---
+    filter_option = st.selectbox(
+        "Filter by Digit:",
+        options=["All", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    )
+
     if st.button("Load Recent Drawings"):
         with st.spinner("Fetching from the lab records..."):
             try:
@@ -436,46 +442,54 @@ elif app_mode == "🎨 Community Gallery":
                 # Fetch all values from the sheet
                 all_records = sheet.get_all_values()
                 
-                # Check if we have data (ignoring the header row if you have one)
+                # Check if we have data 
                 if len(all_records) > 1:
-                    # Grab the last 12 entries and reverse them so the newest are first
-                    recent_records = all_records[-24:] # Upped it to 24 so the catalog looks full!
+                    # Clean out the header row completely
+                    data_records = [row for row in all_records if "Timestamp" not in row[0] and "timestamp" not in row[0].lower()]
+                    
+                    # --- NEW: Apply the filter based on Actual Label (Index 3) ---
+                    if filter_option != "All":
+                        # We only keep rows where the 4th item (actual_label) matches the dropdown choice
+                        data_records = [row for row in data_records if len(row) >= 5 and str(row[3]).strip() == filter_option]
+                    
+                    # Grab the last 24 entries AFTER filtering, and reverse them
+                    recent_records = data_records[-24:] 
                     recent_records.reverse()
                     
-                    # Create a 4-column grid (This will perfectly utilize the full page width)
-                    gallery_cols = st.columns(4)
-                    
-                    for index, row in enumerate(recent_records):
-                        # Skip header row if it accidentally gets caught
-                        if row[0] == "Timestamp": 
-                            continue
-                            
-                        try:
-                            timestamp, model_used, pred_label, actual_label, pixel_str = row[:5]
-                            
-                            # Safely evaluate the string back into a Python list, then to a NumPy array
-                            pixel_list = ast.literal_eval(pixel_str)
-                            pixel_array = np.array(pixel_list).reshape(28, 28)
-                            
-                            # Plot it in the appropriate column
-                            with gallery_cols[index % 4]:
-                                fig, ax = plt.subplots(figsize=(2, 2))
-                                ax.imshow(pixel_array, cmap='gray')
-                                ax.axis('off')
-                                st.pyplot(fig)
+                    # Check if our filter left us with any data
+                    if len(recent_records) > 0:
+                        gallery_cols = st.columns(4)
+                        
+                        for index, row in enumerate(recent_records):
+                            try:
+                                # The [:5] fix is safely applied here!
+                                timestamp, model_used, pred_label, actual_label, pixel_str = row[:5]
                                 
-                                # Add color-coded success/error metrics
-                                if pred_label == actual_label:
-                                    st.success(f"Pred: {pred_label} | Actual: {actual_label}")
-                                else:
-                                    st.error(f"Pred: {pred_label} | Actual: {actual_label}")
+                                # Safely evaluate the string back into a Python list, then to a NumPy array
+                                pixel_list = ast.literal_eval(pixel_str)
+                                pixel_array = np.array(pixel_list).reshape(28, 28)
+                                
+                                # Plot it in the appropriate column
+                                with gallery_cols[index % 4]:
+                                    fig, ax = plt.subplots(figsize=(2, 2))
+                                    ax.imshow(pixel_array, cmap='gray')
+                                    ax.axis('off')
+                                    st.pyplot(fig)
                                     
-                                st.caption(f"*{model_used}*")
-                                st.write("") # Just a little spacing
-                                
-                        except Exception as parse_error:
-                            # If a row has corrupted data, just skip it
-                            continue
+                                    # Add color-coded success/error metrics
+                                    if str(pred_label) == str(actual_label):
+                                        st.success(f"Pred: {pred_label} | Actual: {actual_label}")
+                                    else:
+                                        st.error(f"Pred: {pred_label} | Actual: {actual_label}")
+                                        
+                                    st.caption(f"*{model_used}*")
+                                    st.write("") # Just a little spacing
+                                    
+                            except Exception as parse_error:
+                                # If a row has corrupted data, just skip it
+                                continue
+                    else:
+                        st.info(f"No drawings found for the digit '{filter_option}'. Try selecting a different number!")
                 else:
                     st.info("The gallery is empty! Be the first to draw a digit.")
                     
