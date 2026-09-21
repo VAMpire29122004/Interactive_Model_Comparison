@@ -62,6 +62,28 @@ def log_to_google_sheet(sheet_name, model_used, predicted_label, actual_label, p
         return False
 
 
+# --- NEW: DYNAMIC MODEL FETCHER ---
+@st.cache_data(ttl=60) # Cache for 60 seconds to prevent API spam
+def get_dynamic_model_list():
+    """Fetches unique model names directly from the Google Sheet."""
+    try:
+        client = get_gsheet_client()
+        sheet = client.open("MNIST_Feedback_Data").sheet1
+        
+        # Fetch only the second column (Model Used) to save bandwidth
+        model_column = sheet.col_values(2)
+        
+        # Remove header, ignore blanks, get unique values, and sort alphabetically
+        if len(model_column) > 1:
+            unique_models = sorted(list(set([m.strip() for m in model_column[1:] if m.strip()])))
+            return ["All"] + unique_models
+        else:
+            return ["All"]
+    except Exception:
+        # Fallback if the sheet fails to load
+        return ["All"]
+
+
 # --- 3. Load Models (Cached for speed) ---
 @st.cache_resource
 def load_all_models():
@@ -122,6 +144,7 @@ if app_mode == "✍️ Draw & Predict":
             return_image_data=True,
         )
 
+        # Note: This list defines what users can predict with. The Gallery will dynamically read whatever gets saved!
         model_choice = st.selectbox(
             "Choose your model:",
             ("Random Forest", "L1- Lasso Model", "Sequential Neural Network 1 (3.5 lakh parameters)", 
@@ -427,13 +450,28 @@ elif app_mode == "🎨 Community Gallery":
     st.title("🎨 Community Gallery")
     st.write("Check out how other people drew their digits and how the models interpreted them!")
 
-    # --- NEW: Add a filter selection ---
-    filter_option = st.selectbox(
-        "Filter by Digit:",
-        options=["All", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-    )
+    # Fetch dynamic options from the database
+    dynamic_model_options = get_dynamic_model_list()
 
-    if st.button("Load Recent Drawings"):
+    # --- Layout for filters ---
+    filter_col1, filter_col2, filter_col3 = st.columns(3)
+    
+    with filter_col1:
+        digit_filter = st.selectbox(
+            "Filter by Digit:",
+            options=["All", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+        )
+        
+    with filter_col2:
+        model_filter = st.selectbox(
+            "Filter by Model:",
+            options=dynamic_model_options  # Automatically populated from Google Sheets!
+        )
+        
+    with filter_col3:
+        display_limit = st.slider("Number of drawings to load:", min_value=12, max_value=200, value=24, step=12)
+
+    if st.button("Load Recent Drawings", type="primary"):
         with st.spinner("Fetching from the lab records..."):
             try:
                 client = get_gsheet_client()
@@ -447,22 +485,24 @@ elif app_mode == "🎨 Community Gallery":
                     # Clean out the header row completely
                     data_records = [row for row in all_records if "Timestamp" not in row[0] and "timestamp" not in row[0].lower()]
                     
-                    # --- NEW: Apply the filter based on Actual Label (Index 3) ---
-                    if filter_option != "All":
-                        # We only keep rows where the 4th item (actual_label) matches the dropdown choice
-                        data_records = [row for row in data_records if len(row) >= 5 and str(row[3]).strip() == filter_option]
+                    # --- Apply Digit Filter (Actual Label is Index 3) ---
+                    if digit_filter != "All":
+                        data_records = [row for row in data_records if len(row) >= 5 and str(row[3]).strip() == digit_filter]
+                        
+                    # --- Apply Model Filter (Model Used is Index 1) ---
+                    if model_filter != "All":
+                        data_records = [row for row in data_records if len(row) >= 5 and str(row[1]).strip() == model_filter]
                     
-                    # Grab the last 24 entries AFTER filtering, and reverse them
-                    recent_records = data_records[-24:] 
+                    # Grab the requested amount of entries AFTER filtering, and reverse them
+                    recent_records = data_records[-display_limit:] 
                     recent_records.reverse()
                     
-                    # Check if our filter left us with any data
+                    # Check if our filters left us with any data
                     if len(recent_records) > 0:
                         gallery_cols = st.columns(4)
                         
                         for index, row in enumerate(recent_records):
                             try:
-                                # The [:5] fix is safely applied here!
                                 timestamp, model_used, pred_label, actual_label, pixel_str = row[:5]
                                 
                                 # Safely evaluate the string back into a Python list, then to a NumPy array
@@ -486,10 +526,9 @@ elif app_mode == "🎨 Community Gallery":
                                     st.write("") # Just a little spacing
                                     
                             except Exception as parse_error:
-                                # If a row has corrupted data, just skip it
                                 continue
                     else:
-                        st.info(f"No drawings found for the digit '{filter_option}'. Try selecting a different number!")
+                        st.info("No drawings match your selected filters. Try adjusting the dropdowns!")
                 else:
                     st.info("The gallery is empty! Be the first to draw a digit.")
                     
